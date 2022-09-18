@@ -1,0 +1,152 @@
+version: '3.8'
+
+services:
+  akkoma_science_db:
+    image: postgres:12.1-alpine
+    restart: always
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "akkoma"]
+    environment:
+      POSTGRES_USER: akkoma
+      POSTGRES_PASSWORD: akko_is_best_girl
+    volumes:
+      - ./instances/akkoma_science/setup_db.psql:/docker-entrypoint-initdb.d/akkoma_science_setup_db.sql
+    networks:
+      world:
+        ipv4_address: 192.168.169.2
+
+  akkoma_science_web:
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q --spider --proxy=off localhost:4000 || exit 1",
+        ]
+    restart: always
+    build:
+      context: ./images/akkoma
+      args:
+        - "AKKOMA_VERSION=v3.2.1"
+    volumes:
+      - ./images/akkoma/docker-entrypoint.sh:/opt/akkoma/docker-entrypoint.sh
+      - ./images/akkoma/exec_first_run.sh:/opt/akkoma/exec_first_run.sh
+    environment:
+      DOMAIN: akkoma.science
+      INSTANCE_NAME: Akkoma Science
+      ADMIN_EMAIL: admin@akkoma.science
+      NOTIFY_EMAIL: notify@akkoma.science
+      DB_HOST: akkoma_science_db
+      DB_USER: akkoma
+      DB_PASS: akko_is_best_girl
+      DB_NAME: akkoma_science
+      ADMIN_USER: Amanda
+      ADMIN_PASS: admin
+    networks:
+      world:
+        ipv4_address: 192.168.169.3
+    depends_on:
+      - akkoma_science_db
+
+  akkoma_science_proxy:
+    build:
+      context: ./images/akkoma_nginx
+      args:
+        - "DOMAIN=akkoma.science"
+    container_name: "akkoma.science"
+    volumes:
+      - ./images/akkoma_nginx/templates:/etc/nginx/templates
+    environment:
+    - NGINX_TARGET_HOST=akkoma_science_web
+    - NGINX_HOST=akkoma.science
+    networks:
+      world:
+        ipv4_address: 192.168.169.4
+    depends_on:
+      - akkoma_science_web
+
+  akkoma_magic_db:
+    image: postgres:12.1-alpine
+    restart: always
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "akkoma"]
+    environment:
+      POSTGRES_USER: akkoma
+      POSTGRES_PASSWORD: akko_is_best_girl
+    volumes:
+      - ./instances/akkoma_magic/setup_db.psql:/docker-entrypoint-initdb.d/akkoma_magic_setup_db.sql
+    networks:
+      world:
+        ipv4_address: 192.168.169.5
+
+  akkoma_magic_web:
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q --spider --proxy=off localhost:4000 || exit 1",
+        ]
+    restart: always
+    build:
+      context: ./images/akkoma
+      args:
+        - "AKKOMA_VERSION=v3.2.1"
+    volumes:
+      - ./images/akkoma/docker-entrypoint.sh:/opt/akkoma/docker-entrypoint.sh
+      - ./images/akkoma/exec_first_run.sh:/opt/akkoma/exec_first_run.sh
+    environment:
+      DOMAIN: akkoma.magic
+      INSTANCE_NAME: Akkoma Magic
+      ADMIN_EMAIL: admin@akkoma.magic
+      NOTIFY_EMAIL: notify@akkoma.magic
+      DB_HOST: akkoma_magic_db
+      DB_USER: akkoma
+      DB_PASS: akko_is_best_girl
+      DB_NAME: akkoma_magic
+      ADMIN_USER: Sucy
+      ADMIN_PASS: admin
+    networks:
+      world:
+        ipv4_address: 192.168.169.6
+    depends_on:
+      - akkoma_magic_db
+
+  akkoma_magic_proxy:
+    build:
+      context: ./images/akkoma_nginx
+      args:
+        - "DOMAIN=akkoma.magic"
+    container_name: "akkoma.magic"
+    volumes:
+      - ./images/akkoma_nginx/templates:/etc/nginx/templates
+    environment:
+    - NGINX_TARGET_HOST=akkoma_magic_web
+    - NGINX_HOST=akkoma.magic
+    networks:
+      world:
+        ipv4_address: 192.168.169.7
+    depends_on:
+      - akkoma_magic_web
+
+  public_external_proxy:
+    build:
+      context: ./images/akkoma_nginx
+      args:
+        - "DOMAIN=akkoma.magic,akkoma.science"
+    volumes:
+      - ./instances/public_external_proxy:/etc/nginx/conf.d
+    networks:
+      world:
+        ipv4_address: 192.168.169.253
+    depends_on:
+      - akkoma_magic_web
+      - akkoma_science_web
+
+networks:
+  world:
+    driver: bridge
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: 192.168.169.1/24
+          ip_range: 192.168.169.1/24
+          gateway: 192.168.169.254
